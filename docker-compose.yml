@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN}
+      - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET}
+      - SLACK_CHANNEL=${SLACK_CHANNEL:-#dev-alerts}
+      - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OLLAMA_URL=http://ollama:11434
+    volumes:
+      - ~/.kube/config:/root/.kube/config:ro
+      - ./src:/app/src
+    depends_on:
+      - ollama
+    networks:
+      - bot-network
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - bot-network
+    command: serve
+
+  # Mock Alertmanager for testing
+  alertmanager-mock:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./examples/alertmanager-config-mock.yml:/etc/alertmanager/alertmanager.yml
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - bot-network
+
+volumes:
+  ollama-data:
+
+networks:
+  bot-network:
+    driver: bridge

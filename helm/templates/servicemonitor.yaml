@@ -1,0 +1,16 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "slack-k8s-bot.fullname" . }}
+  labels:
+    {{- include "slack-k8s-bot.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "slack-k8s-bot.selectorLabels" . | nindent 6 }}
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+{{- end }}

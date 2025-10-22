@@ -1,0 +1,24 @@
+replicaCount: 1
+
+image:
+  pullPolicy: Always
+
+slack:
+  botToken: "xoxb-dev-token"
+  signingSecret: "dev-secret"
+  channel: "#dev-alerts"
+
+llm:
+  provider: "anthropic"
+  anthropicApiKey: "sk-ant-dev-key"
+
+alertmanager:
+  enabled: true
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"

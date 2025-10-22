@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slack-k8s-bot.fullname" . }}
+  labels:
+    {{- include "slack-k8s-bot.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "slack-k8s-bot.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "slack-k8s-bot.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+      - name: bot
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "8080"
+        - name: SLACK_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "slack-k8s-bot.fullname" . }}
+              key: slack-bot-token
+        - name: SLACK_SIGNING_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "slack-k8s-bot.fullname" . }}
+              key: slack-signing-secret
+        - name: SLACK_CHANNEL
+          value: {{ .Values.slack.channel }}
+        - name: LLM_PROVIDER
+          value: {{ .Values.llm.provider }}
+        {{- if eq .Values.llm.provider "anthropic" }}
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "slack-k8s-bot.fullname" . }}
+              key: anthropic-api-key
+        {{- end }}
+        {{- if eq .Values.llm.provider "openai" }}
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "slack-k8s-bot.fullname" . }}
+              key: openai-api-key
+        - name: OPENAI_MODEL
+          value: {{ .Values.llm.openaiModel }}
+        {{- end }}
+        {{- if eq .Values.llm.provider "gemini" }}
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "slack-k8s-bot.fullname" . }}
+              key: gemini-api-key
+        - name: GEMINI_MODEL
+          value: {{ .Values.llm.geminiModel }}
+        {{- end }}
+        {{- if eq .Values.llm.provider "ollama" }}
+        - name: OLLAMA_URL
+          value: {{ .Values.llm.ollamaUrl }}
+        - name: OLLAMA_MODEL
+          value: {{ .Values.llm.ollamaModel }}
+        {{- end }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

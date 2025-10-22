@@ -1,0 +1,512 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kubernetes-alerts-complete
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+spec:
+  groups:
+  # Cluster Core Component Alerts
+  - name: alertmanager
+    interval: 30s
+    rules:
+    - alert: AlertmanagerClusterCrashlooping
+      expr: rate(alertmanager_cluster_members[5m]) < 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Alertmanager cluster is crashlooping"
+        description: "Alertmanager cluster members are unstable"
+
+    - alert: AlertmanagerClusterDown
+      expr: absent(up{job="alertmanager"} == 1)
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Alertmanager cluster is down"
+        description: "Alertmanager is not reachable"
+
+    - alert: AlertmanagerClusterFailedToSendAlerts
+      expr: rate(alertmanager_notifications_failed_total[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Alertmanager failing to send alerts"
+        description: "Alertmanager has failed to send {{ $value }} alerts"
+
+    - alert: AlertmanagerConfigInconsistent
+      expr: count(count_values("config_hash", alertmanager_config_hash)) > 1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Alertmanager config is inconsistent"
+        description: "Alertmanager instances have different configurations"
+
+    - alert: AlertmanagerFailedReload
+      expr: alertmanager_config_last_reload_successful == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Alertmanager failed to reload config"
+        description: "Alertmanager configuration reload failed"
+
+    - alert: KubeAPIDown
+      expr: absent(up{job="apiserver"} == 1)
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Kubernetes API server is down"
+        description: "API server is not responding"
+
+    - alert: KubeAPIErrorBudgetBurn
+      expr: |
+        sum(rate(apiserver_request_total{code=~"5.."}[5m])) /
+        sum(rate(apiserver_request_total[5m])) > 0.01
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "API server error budget is burning"
+        description: "API server has {{ $value | humanizePercentage }} error rate"
+
+    - alert: PrometheusBadConfig
+      expr: prometheus_config_last_reload_successful == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Prometheus configuration reload failed"
+        description: "Prometheus failed to reload its configuration"
+
+    - alert: PrometheusTargetSyncFailure
+      expr: increase(prometheus_target_sync_failed_total[30m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Prometheus target sync failures"
+        description: "Prometheus failed to sync targets {{ $value }} times"
+
+    - alert: PrometheusRuleFailures
+      expr: increase(prometheus_rule_evaluation_failures_total[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Prometheus rule evaluation failures"
+        description: "Prometheus has {{ $value }} rule evaluation failures"
+
+  # Workload Related Alerts
+  - name: workloads
+    interval: 30s
+    rules:
+    - alert: KubeDeploymentReplicasMismatch
+      expr: |
+        kube_deployment_spec_replicas !=
+        kube_deployment_status_replicas_available
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replica mismatch"
+        description: "Desired: {{ $labels.spec_replicas }}, Available: {{ $labels.status_replicas_available }}"
+
+    - alert: KubeStatefulSetReplicasMismatch
+      expr: |
+        kube_statefulset_status_replicas_ready !=
+        kube_statefulset_status_replicas
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} replica mismatch"
+        description: "Not all replicas are ready"
+
+    - alert: KubePodCrashLooping
+      expr: rate(kube_pod_container_status_restarts_total[10m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+        description: "Pod has restarted {{ $value }} times in 10 minutes"
+
+    - alert: KubePodNotReady
+      expr: |
+        sum by (namespace, pod) (
+          kube_pod_status_phase{phase=~"Pending|Unknown|Failed"}
+        ) > 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} not ready"
+        description: "Pod has been in {{ $labels.phase }} state for 10+ minutes"
+
+    - alert: KubeJobFailed
+      expr: kube_job_status_failed > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Job {{ $labels.namespace }}/{{ $labels.job_name }} failed"
+        description: "Job has failed {{ $value }} times"
+
+    - alert: KubeHpaReplicasMismatch
+      expr: |
+        kube_horizontalpodautoscaler_status_desired_replicas !=
+        kube_horizontalpodautoscaler_status_current_replicas
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} replica mismatch"
+        description: "HPA cannot reach desired replica count"
+
+    - alert: KubeHpaMaxedOut
+      expr: |
+        kube_horizontalpodautoscaler_status_current_replicas ==
+        kube_horizontalpodautoscaler_spec_max_replicas
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} maxed out"
+        description: "HPA has been at maximum replicas for 15 minutes"
+
+    - alert: KubeHpaHighUtilization
+      expr: |
+        kube_horizontalpodautoscaler_status_current_replicas /
+        kube_horizontalpodautoscaler_spec_max_replicas > 0.8
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} high utilization"
+        description: "HPA is at {{ $value | humanizePercentage }} of max replicas"
+
+    - alert: KubeHpaFrequentScaling
+      expr: |
+        rate(kube_horizontalpodautoscaler_status_desired_replicas[15m]) > 0.1
+      for: 10m
+      labels:
+        severity: info
+      annotations:
+        summary: "HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} scaling frequently"
+        description: "HPA is changing replica count frequently"
+
+    - alert: KubeImagePullBackOff
+      expr: |
+        kube_pod_container_status_waiting_reason{reason="ImagePullBackOff"} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} image pull error"
+        description: "Container {{ $labels.container }} cannot pull image"
+
+    - alert: KubeServiceEndpointsUnavailable
+      expr: |
+        kube_service_spec_type{type!="ExternalName"} unless on (namespace, service)
+        kube_endpoint_address_available > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Service {{ $labels.namespace }}/{{ $labels.service }} has no endpoints"
+        description: "Service has no available endpoints"
+
+    - alert: KubeConfigReloadFailed
+      expr: |
+        kube_pod_container_status_restarts_total > 0 and
+        kube_pod_container_status_last_terminated_reason{reason="Error"} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Config reload failed for {{ $labels.namespace }}/{{ $labels.pod }}"
+        description: "Container failed to reload configuration"
+
+  # Container and Resource Alerts
+  - name: resources
+    interval: 30s
+    rules:
+    - alert: KubeContainerOOMKilled
+      expr: |
+        (kube_pod_container_status_restarts_total - kube_pod_container_status_restarts_total offset 5m >= 1)
+        and ignoring (reason) min_over_time(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[5m]) == 1
+      labels:
+        severity: warning
+      annotations:
+        summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} OOMKilled"
+        description: "Container was killed due to out of memory"
+
+    - alert: KubeContainerCPUNearLimit
+      expr: |
+        (sum(rate(container_cpu_usage_seconds_total{container!=""}[5m])) by (namespace, pod, container) /
+        sum(kube_pod_container_resource_limits{resource="cpu"}) by (namespace, pod, container)) > 0.9
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Container {{ $labels.container }} CPU near limit"
+        description: "Container is using {{ $value | humanizePercentage }} of CPU limit"
+
+    - alert: KubeContainerMemoryNearLimit
+      expr: |
+        (sum(container_memory_working_set_bytes{container!=""}) by (namespace, pod, container) /
+        sum(kube_pod_container_resource_limits{resource="memory"}) by (namespace, pod, container)) > 0.9
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Container {{ $labels.container }} memory near limit"
+        description: "Container is using {{ $value | humanizePercentage }} of memory limit"
+
+    - alert: KubeTooManyPendingPods
+      expr: |
+        sum by (namespace) (kube_pod_status_phase{phase="Pending"}) > 10
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Too many pending pods in {{ $labels.namespace }}"
+        description: "{{ $value }} pods are pending"
+
+    - alert: KubeCPUOvercommit
+      expr: |
+        sum(kube_pod_container_resource_requests{resource="cpu"}) by (node) /
+        sum(kube_node_status_allocatable{resource="cpu"}) by (node) > 1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "CPU overcommit on node {{ $labels.node }}"
+        description: "Node has {{ $value | humanizePercentage }} CPU overcommit"
+
+    - alert: KubeMemoryOvercommit
+      expr: |
+        sum(kube_pod_container_resource_requests{resource="memory"}) by (node) /
+        sum(kube_node_status_allocatable{resource="memory"}) by (node) > 1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Memory overcommit on node {{ $labels.node }}"
+        description: "Node has {{ $value | humanizePercentage }} memory overcommit"
+
+    - alert: KubeQuotaExceeded
+      expr: |
+        kube_resourcequota{type="used"} /
+        kube_resourcequota{type="hard"} > 1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Resource quota exceeded in {{ $labels.namespace }}"
+        description: "Quota for {{ $labels.resource }} is exceeded"
+
+    - alert: KubeQuotaAlmostFull
+      expr: |
+        kube_resourcequota{type="used"} /
+        kube_resourcequota{type="hard"} > 0.9
+      for: 15m
+      labels:
+        severity: info
+      annotations:
+        summary: "Resource quota almost full in {{ $labels.namespace }}"
+        description: "Quota for {{ $labels.resource }} is at {{ $value | humanizePercentage }}"
+
+    - alert: CPUThrottlingHigh
+      expr: |
+        sum(rate(container_cpu_cfs_throttled_seconds_total[5m])) by (namespace, pod, container) /
+        sum(rate(container_cpu_cfs_periods_total[5m])) by (namespace, pod, container) > 0.25
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Container {{ $labels.container }} CPU throttling high"
+        description: "Container is being throttled {{ $value | humanizePercentage }} of the time"
+
+    - alert: NodeCPUHighUsage
+      expr: |
+        (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance)) * 100 > 80
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High CPU usage on node {{ $labels.instance }}"
+        description: "Node CPU usage is {{ $value }}%"
+
+    - alert: NodeMemoryHighUtilization
+      expr: |
+        (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High memory utilization on node {{ $labels.instance }}"
+        description: "Node memory usage is {{ $value }}%"
+
+    - alert: NodeSystemSaturation
+      expr: |
+        node_load15 / count(node_cpu_seconds_total{mode="idle"}) by (instance) > 2
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Node {{ $labels.instance }} system saturation"
+        description: "Node load average is {{ $value }}"
+
+  # Node and Storage Alerts
+  - name: nodes-storage
+    interval: 30s
+    rules:
+    - alert: KubeletDown
+      expr: absent(up{job="kubelet"} == 1)
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Kubelet is down on node {{ $labels.node }}"
+        description: "Kubelet has been down for 5 minutes"
+
+    - alert: KubeNodeNotReady
+      expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Node {{ $labels.node }} is not ready"
+        description: "Node has been unready for 5 minutes"
+
+    - alert: NodeFileDescriptorLimit
+      expr: |
+        (node_filefd_allocated / node_filefd_maximum) > 0.9
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Node {{ $labels.instance }} file descriptor limit"
+        description: "File descriptors at {{ $value | humanizePercentage }}"
+
+    - alert: KubePersistentVolumeErrors
+      expr: kube_persistentvolume_status_phase{phase=~"Failed|Pending"} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "PersistentVolume {{ $labels.persistentvolume }} in error state"
+        description: "PV is in {{ $labels.phase }} state"
+
+    - alert: KubePersistentVolumeFillingUp
+      expr: |
+        kubelet_volume_stats_available_bytes /
+        kubelet_volume_stats_capacity_bytes < 0.1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} filling up"
+        description: "PVC has only {{ $value | humanizePercentage }} space left"
+
+    - alert: KubePersistentVolumeInodesFillingUp
+      expr: |
+        kubelet_volume_stats_inodes_free /
+        kubelet_volume_stats_inodes < 0.1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} inodes filling up"
+        description: "PVC has only {{ $value | humanizePercentage }} inodes left"
+
+    - alert: KubeVolumeMountFailed
+      expr: |
+        kube_pod_container_status_waiting_reason{reason="ContainerCreating"} > 0 and
+        kube_pod_status_phase{phase="Pending"} > 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Volume mount failed for {{ $labels.namespace }}/{{ $labels.pod }}"
+        description: "Pod cannot mount volume"
+
+    - alert: NodeFilesystemAlmostOutOfSpace
+      expr: |
+        (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"} /
+        node_filesystem_size_bytes{fstype!~"tmpfs|fuse.lxcfs"}) < 0.1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Node {{ $labels.instance }} filesystem almost full"
+        description: "Filesystem {{ $labels.mountpoint }} has only {{ $value | humanizePercentage }} space left"
+
+    - alert: NodeFilesystemSpaceFillingUp
+      expr: |
+        predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"}[6h], 24*60*60) < 0
+      for: 1h
+      labels:
+        severity: warning
+      annotations:
+        summary: "Node {{ $labels.instance }} filesystem filling up"
+        description: "Filesystem {{ $labels.mountpoint }} will be full in 24 hours"
+
+    - alert: KubeStateMetricsDown
+      expr: absent(up{job="kube-state-metrics"} == 1)
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "kube-state-metrics is down"
+        description: "kube-state-metrics has been down for 5 minutes"
+
+  # Certificate and Monitoring Alerts
+  - name: certificates
+    interval: 30s
+    rules:
+    - alert: KubeClientCertificateExpiration
+      expr: |
+        apiserver_client_certificate_expiration_seconds_count > 0 and
+        histogram_quantile(0.01, sum(rate(apiserver_client_certificate_expiration_seconds_bucket[5m])) by (job, le)) < 604800
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Client certificate expiring soon"
+        description: "A client certificate will expire in less than 7 days"
+
+    - alert: KubeletClientCertificateExpiration
+      expr: kubelet_certificate_manager_client_expiration_seconds < 604800
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Kubelet client certificate expiring on {{ $labels.node }}"
+        description: "Certificate will expire in {{ $value | humanizeDuration }}"
+
+    - alert: KubeletServerCertificateExpiration
+      expr: kubelet_certificate_manager_server_expiration_seconds < 604800
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Kubelet server certificate expiring on {{ $labels.node }}"
+        description: "Certificate will expire in {{ $value | humanizeDuration }}"
+
+    - alert: KubeStateMetricsListErrors
+      expr: increase(kube_state_metrics_list_total{result="error"}[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "kube-state-metrics list errors"
+        description: "kube-state-metrics has {{ $value }} list errors"

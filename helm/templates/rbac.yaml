@@ -1,0 +1,82 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "slack-k8s-bot.fullname" . }}
+  labels:
+    {{- include "slack-k8s-bot.labels" . | nindent 4 }}
+rules:
+# Read permissions
+- apiGroups: [""]
+  resources:
+    - pods
+    - pods/log
+    - events
+    - nodes
+    - services
+    - persistentvolumeclaims
+    - persistentvolumes
+    - configmaps
+  verbs: ["get", "list"]
+
+- apiGroups: ["apps"]
+  resources:
+    - deployments
+    - statefulsets
+    - replicasets
+    - daemonsets
+  verbs: ["get", "list"]
+
+- apiGroups: ["autoscaling"]
+  resources:
+    - horizontalpodautoscalers
+  verbs: ["get", "list"]
+
+- apiGroups: ["batch"]
+  resources:
+    - jobs
+    - cronjobs
+  verbs: ["get", "list"]
+
+- apiGroups: ["networking.k8s.io"]
+  resources:
+    - networkpolicies
+    - ingresses
+  verbs: ["get", "list"]
+
+- apiGroups: ["storage.k8s.io"]
+  resources:
+    - storageclasses
+  verbs: ["get", "list"]
+
+# Write permissions for remediation
+- apiGroups: [""]
+  resources:
+    - pods
+  verbs: ["delete"]  # For restart_pod
+
+- apiGroups: ["apps"]
+  resources:
+    - deployments
+    - statefulsets
+  verbs: ["patch"]  # For scale operations
+
+- apiGroups: [""]
+  resources:
+    - nodes
+  verbs: ["patch"]  # For cordon/uncordon
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "slack-k8s-bot.fullname" . }}
+  labels:
+    {{- include "slack-k8s-bot.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "slack-k8s-bot.fullname" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.serviceAccount.name }}
+  namespace: {{ .Release.Namespace }}

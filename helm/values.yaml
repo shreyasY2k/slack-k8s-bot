@@ -1,0 +1,60 @@
+alertmanager:
+  enabled: true
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname', 'namespace', 'pod']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      receiver: 'slack-k8s-bot'
+    receivers:
+    - name: 'slack-k8s-bot'
+      webhook_configs:
+      - url: 'http://slack-k8s-bot:8080/alertmanager'
+        send_resolved: false
+
+prometheus:
+  enabled: false
+
+replicaCount: 1
+
+image:
+  repository: your-registry/slack-k8s-bot
+  tag: latest
+  pullPolicy: IfNotPresent
+
+slack:
+  botToken: ""
+  signingSecret: ""
+  channel: "#eks-alerts"
+
+llm:
+  provider: "anthropic"
+  anthropicApiKey: ""
+  openaiApiKey: ""
+  openaiModel: "gpt-4o"
+  geminiApiKey: ""
+  geminiModel: "gemini-2.0-flash-exp"
+  ollamaUrl: "http://ollama.default.svc.cluster.local:11434"
+  ollamaModel: "llama3.2"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "200m"
+  limits:
+    memory: "1Gi"
+    cpu: "1000m"
+
+serviceAccount:
+  create: true
+  name: slack-k8s-bot
+
+monitoring:
+  enabled: true
