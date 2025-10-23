@@ -1,8 +1,8 @@
 .PHONY: help build push deploy test clean
 
 # Variables
-REGISTRY ?= your-registry
-IMAGE_NAME ?= slack-k8s-bot
+export REGISTRY=ghcr.io/$(GITHUB_USERNAME)
+export IMAGE_NAME=slack-k8s-bot
 IMAGE_TAG ?= latest
 NAMESPACE ?= monitoring
 RELEASE_NAME ?= slack-k8s-bot
