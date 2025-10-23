@@ -3,7 +3,7 @@ entries:
   slack-k8s-bot:
   - apiVersion: v2
     appVersion: "1.0"
-    created: "2025-10-23T11:35:38.139832366Z"
+    created: "2025-10-23T14:01:59.577360107Z"
     dependencies:
     - condition: alertmanager.enabled
       name: alertmanager
@@ -17,6 +17,6 @@ entries:
     digest: a9ab24e540e2115829a1ba60312e8d6ef1764beca0503c49f81df76f9927ab66
     name: slack-k8s-bot
     urls:
-    - https://shreyasy2k.github.io/slack-k8s-bot/slack-k8s-bot-1.0.0.tgz
+    - https://YOUR_GITHUB_USERNAME.github.io/slack-k8s-bot/slack-k8s-bot-1.0.0.tgz
     version: 1.0.0
-generated: "2025-10-23T11:35:38.104808243Z"
+generated: "2025-10-23T14:01:59.541853968Z"
