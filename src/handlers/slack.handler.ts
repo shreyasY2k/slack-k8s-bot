@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { MCPKubernetesServer } from '../mcp/mcp-server';
-import { SlackService } from '../services/slack.service';
+import { MCPKubernetesServer } from '../mcp/mcp-server.js';
+import { SlackService } from '../services/slack.service.js';
 
 export class SlackHandler {
   private mcpServer: MCPKubernetesServer;

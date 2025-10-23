@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { AlertmanagerWebhook, Alert } from '../types';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { MCPKubernetesServer } from '../mcp/mcp-server';
+import { MCPKubernetesServer } from '../mcp/mcp-server.js';
 
 export class AlertmanagerHandler {
   private anthropic?: Anthropic;

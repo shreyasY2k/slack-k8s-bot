@@ -5,10 +5,10 @@ import {
   ListToolsRequestSchema,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
-import { KubernetesService } from '../services/kubernetes.service';
-import { SlackService } from '../services/slack.service';
-import { getKubectlTools } from './tools/kubectl.tools';
-import { getSlackTools } from './tools/slack.tools';
+import { KubernetesService } from '../services/kubernetes.service.js';
+import { SlackService } from '../services/slack.service.js';
+import { getKubectlTools } from './tools/kubectl.tools.js';
+import { getSlackTools } from './tools/slack.tools.js';
 
 export class MCPKubernetesServer {
   private server: Server;

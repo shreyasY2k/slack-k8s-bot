@@ -1,6 +1,6 @@
 import express from 'express';
-import { AlertmanagerHandler } from './handlers/alertmanager.handler';
-import { SlackHandler } from './handlers/slack.handler';
+import { AlertmanagerHandler } from './handlers/alertmanager.handler.js';
+import { SlackHandler } from './handlers/slack.handler.js';
 
 // Simple in-memory metrics
 const metrics = {

@@ -1,4 +1,4 @@
-import { MCPKubernetesServer } from './mcp/mcp-server';
+import { MCPKubernetesServer } from './mcp/mcp-server.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
